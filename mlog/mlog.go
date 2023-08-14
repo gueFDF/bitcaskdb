@@ -30,9 +30,9 @@ const (
 // 配置（目前较为简单）
 var (
 	LogLevel  Level       //日志等级
+	outfil    *os.File    //输出文件
 	logPrefix string      //日志前缀
 	logger    *log.Logger //向终端的输出
-	loggerf   *log.Logger //向文件输出（可设置）
 )
 
 // 用来设置前缀
@@ -42,7 +42,8 @@ var levelFlags = []string{"DEBUG", "INFO", "WARNING", "ERROR", "FATAL"}
 func init() {
 	LogLevel = DEBUG
 	logPrefix = ""
-	logger = log.New(os.Stdout, "[default]", LstdFlags)
+	outfil = os.Stdout //默认向终端输出
+	logger = log.New(outfil, "[default]", LstdFlags)
 }
 
 // Println ..
@@ -77,7 +78,6 @@ func Debug(format string, v ...interface{}) {
 	setPrefix(DEBUG)
 	if DEBUG >= LogLevel {
 		Printf(logger, format, v...)
-		Printf(loggerf, format, v...)
 	}
 
 }
@@ -87,7 +87,6 @@ func Info(format string, v ...interface{}) {
 	setPrefix(INFO)
 	if INFO >= LogLevel {
 		Printf(logger, format, v...)
-		Printf(loggerf, format, v...)
 	}
 }
 
@@ -96,7 +95,6 @@ func Warn(format string, v ...interface{}) {
 	setPrefix(WARNING)
 	if WARNING >= LogLevel {
 		Printf(logger, format, v...)
-		Printf(loggerf, format, v...)
 	}
 }
 
@@ -105,7 +103,6 @@ func Error(format string, v ...interface{}) {
 	setPrefix(ERROR)
 	if ERROR >= LogLevel {
 		Printf(logger, format, v...)
-		Printf(loggerf, format, v...)
 	}
 }
 
@@ -114,30 +111,14 @@ func Fatal(v ...interface{}) {
 	setPrefix(FATAL)
 	if FATAL >= LogLevel {
 		Fatalln(logger, v...)
-		Println(loggerf, v...)
 	}
 
 }
 func setPrefix(level Level) {
 	logPrefix = fmt.Sprintf("[%s] ", levelFlags[level])
 	logger.SetPrefix(logPrefix)
-	if loggerf != nil {
-		loggerf.SetPrefix(logPrefix)
-	}
-}
-
-// Config ..
-func Config(level Level, lfile *os.File) {
-	LogLevel = level
-	if lfile != nil {
-		loggerf = log.New(lfile, "[default] ", log.LstdFlags)
-		loggerf.SetFlags(log.Ldate | log.Llongfile)
-	}
 }
 
 func SetFlags(flag int) {
 	logger.SetFlags(flag)
-	if loggerf != nil {
-		loggerf.SetFlags(flag)
-	}
 }
