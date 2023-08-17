@@ -3,12 +3,12 @@ package wal
 import "os"
 
 type Options struct {
-	DirPath        string // path to the file
-	SegmentSize    int64  // max size of the file
-	SegmentFileExt string // extension of the file
-	BlockCache     uint32 // 块缓存大小,0表示不使用
-	Sync           bool   // 是否同步(是否持久化)
-	BytesPerSync   uint32 // 用 fsync 之前要写入的字节数
+	DirPath         string // path to the file
+	SegmentSize     int64  // max size of the file
+	SegmentFileExt  string // extension of the file
+	CacheBlockCount uint32 // 缓存支持的块数
+	Sync            bool   // 是否同步(是否持久化)
+	BytesPerSync    uint32 // 用 fsync 之前要写入的字节数
 }
 
 const (
@@ -20,10 +20,10 @@ const (
 
 // 默认配置
 var DefaultOptions = Options{
-	DirPath:        os.TempDir(),
-	SegmentSize:    GB,
-	SegmentFileExt: ".SEG",
-	BlockCache:     32 * KB * 10,
-	Sync:           false,
-	BytesPerSync:   0,
+	DirPath:         os.TempDir(),
+	SegmentSize:     GB,
+	SegmentFileExt:  ".SEG",
+	CacheBlockCount: 10, // default 10
+	Sync:            false,
+	BytesPerSync:    0,
 }
