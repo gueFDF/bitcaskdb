@@ -40,9 +40,9 @@ func Open(options Options) (*WAL, error) {
 		return nil, fmt.Errorf("segment file extension must start with '.'")
 	}
 
-	if options.CacheBlockCount > 0 {
-		return nil, fmt.Errorf("CacheBlockCount must be greater or equal to zero ")
-	}
+	// if options.CacheBlockCount > 0 {
+	// 	return nil, fmt.Errorf("CacheBlockCount must be greater or equal to zero ")
+	// }
 
 	wal := &WAL{
 		options:       options,
@@ -143,6 +143,7 @@ func (wal *WAL) IsEmpty() bool {
 	wal.mu.RLock()
 	defer wal.mu.RUnlock()
 
+	fmt.Println(len(wal.olderSegments), " ", wal.activeSegment.Size())
 	return len(wal.olderSegments) == 0 && wal.activeSegment.Size() == 0
 }
 
@@ -294,6 +295,8 @@ func (wal *WAL) Read(pos *ChunkPosition) ([]byte, error) {
 
 	var segment *segment
 	if pos.SegmentId == wal.activeSegment.id {
+		segment = wal.activeSegment
+	} else {
 		segment = wal.olderSegments[pos.SegmentId]
 	}
 	if segment == nil {
@@ -303,6 +306,27 @@ func (wal *WAL) Read(pos *ChunkPosition) ([]byte, error) {
 	return segment.Read(pos.BlockNumber, pos.ChunkOffset)
 }
 
+func (wal *WAL) Close() error {
+	wal.mu.Lock()
+	defer wal.mu.Unlock()
+
+	// purge the block cache.
+	if wal.blockCache != nil {
+		//	wal.blockCache.Purge()
+		wal.blockCache = nil
+	}
+
+	// close all segment files.
+	for _, segment := range wal.olderSegments {
+		if err := segment.Close(); err != nil {
+			return err
+		}
+	}
+	wal.olderSegments = nil
+
+	// close the active segment file.
+	return wal.activeSegment.Close()
+}
 func (wal *WAL) Delete() error {
 	wal.mu.Lock()
 	defer wal.mu.Unlock()
@@ -321,6 +345,8 @@ func (wal *WAL) Delete() error {
 	wal.olderSegments = nil
 
 	// delete the active segment file.
+	wal.activeSegment.currentBlockNumber = 0
+	wal.activeSegment.currentBlockSize = 0
 	return wal.activeSegment.Remove()
 }
 
@@ -333,4 +359,11 @@ func (wal *WAL) Sync() error {
 
 func (wal *WAL) isFull(dataSize int64) bool {
 	return wal.activeSegment.Size()+dataSize+chunkHeaderSize > wal.options.SegmentSize
+}
+
+func DestroyWAL(wal *WAL) {
+	if wal != nil {
+		_ = wal.Close()
+		_ = os.RemoveAll(wal.options.DirPath)
+	}
 }
