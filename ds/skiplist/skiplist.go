@@ -1,5 +1,4 @@
-package index
-
+package skiplist
 import (
 	"bytes"
 	"math/rand"

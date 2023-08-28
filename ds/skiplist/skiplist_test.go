@@ -1,4 +1,4 @@
-package index
+package skiplist
 
 import (
 	"fmt"
@@ -133,8 +133,6 @@ func TestElement_Value(t *testing.T) {
 	e := Element{key: []byte("a"), value: "a"}
 	t.Log(e.value)
 }
-
-
 
 func TestSkipList_PrefixScan(t *testing.T) {
 	list := NewSkipList()
