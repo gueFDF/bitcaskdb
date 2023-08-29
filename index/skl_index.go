@@ -11,7 +11,7 @@ type Skl struct {
 	lock *sync.RWMutex
 }
 
-func newSkl() *Skl {
+func NewSkl() *Skl {
 	return &Skl{
 		skl:  skiplist.NewSkipList(),
 		lock: new(sync.RWMutex),
