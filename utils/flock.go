@@ -48,7 +48,7 @@ func (l *FLock) Lock() error {
 	if l == nil {
 		return errors.New("cannot use lock on a nil flock")
 	}
-	err := syscall.Flock(int(l.lock.Fd()), syscall.LOCK_EX)
+	err := syscall.Flock(int(l.lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
 		return fmt.Errorf("cannot flock directory %s - %s (in use by other)", l.fileName, err)
 	}
