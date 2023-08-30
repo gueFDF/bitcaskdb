@@ -67,13 +67,13 @@ func decodeKvRecord(buf []byte) ([]byte, *wal.ChunkPosition) {
 	}
 }
 
-// 从hinfile中记载key - position
+// 从kvfile中加载key - position
 func (db *DB) loadIndexFormKvFile() error {
 	kvFile, err := wal.Open(wal.Options{
 		DirPath:         db.options.DirPath,
 		SegmentSize:     math.MaxInt64,
 		SegmentFileExt:  kvFileNameSuffix,
-		CacheBlockCount: 32 * KB * 10,
+		CacheBlockCount: 10,
 	})
 
 	if err != nil {

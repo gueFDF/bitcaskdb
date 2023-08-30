@@ -4,14 +4,15 @@ import (
 	"bitcaskdb/utils"
 	"bitcaskdb/wal"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"sync"
+	"time"
 )
 
 const (
 	dataFileNameSuffix = ".SEG"
-
-	mergeFinNameSuffix = ".MERGEFIN"
 )
 
 type DB struct {
@@ -22,10 +23,18 @@ type DB struct {
 	fileLock     *utils.FLock
 	mu           sync.RWMutex
 	closed       bool
-	mergeRunning uint32 // indicate if the database is merging
+	mergeRunning uint32 // 是否正在合并
 	batchPool    sync.Pool
 	watchCh      chan *Event // user consume channel for watch events
 	watcher      *Watcher
+}
+
+// 存放这个数据库的大小
+type Stat struct {
+	// Total number of keys
+	KeysNum int
+	// Total disk size of database directory
+	DiskSize int64
 }
 
 func Open(options Options) (*DB, error) {
@@ -47,12 +56,16 @@ func Open(options Options) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	filelock.Lock()
+	err = filelock.Lock()
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO  load merge files if exists
+	//如果merge文件存在,加载merge文件
+	if err = loadMergeFiles(options.DirPath); err != nil {
+		return nil, err
+	}
+
 	db := &DB{
 		index:    NewIndexer(SkipList),
 		options:  options,
@@ -64,7 +77,77 @@ func Open(options Options) (*DB, error) {
 	if db.dataFiles, err = db.openWalFiles(); err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	//加载index
+	if err = db.loadIndex(); err != nil {
+		return nil, err
+	}
+
+	if options.WatchQueueSize > 0 {
+		db.watchCh = make(chan *Event, 100)
+		db.watcher = NewWatcher(options.WatchQueueSize)
+		go db.watcher.sendEvent(db.watchCh)
+	}
+
+	return db, nil
+}
+
+func (db *DB) Close() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if err := db.closeFiles(); err != nil {
+		return err
+	}
+
+	if err := db.fileLock.Unlock(); err != nil {
+		return err
+	}
+
+	db.fileLock.Release()
+	// close watch channel
+	if db.options.WatchQueueSize > 0 {
+		close(db.watchCh)
+	}
+
+	db.closed = true
+	return nil
+}
+
+// closeFiles close all data files and hint file
+func (db *DB) closeFiles() error {
+	// close wal
+	if err := db.dataFiles.Close(); err != nil {
+		return err
+	}
+	// close hint file if exists
+	if db.kvFile != nil {
+		if err := db.kvFile.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Sync
+func (db *DB) Sync() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return db.dataFiles.Sync()
+}
+
+func (db *DB) Stat() *Stat {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	diskSize, err := utils.DirSize(db.options.DirPath)
+	if err != nil {
+		panic(fmt.Sprintf("rosedb: get database directory size error: %v", err))
+	}
+	return &Stat{
+		KeysNum:  db.index.Size(),
+		DiskSize: diskSize,
+	}
 }
 
 func checkOptions(options Options) error {
@@ -93,4 +176,66 @@ func (db *DB) openWalFiles() (*wal.WAL, error) {
 	}
 
 	return walFiles, nil
+}
+
+func (db *DB) loadIndexFromWAL() error {
+	mergeFinSegmentId, err := getMergeFinSegmentId(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+
+	indexRecords := make(map[uint64][]*IndexRecord)
+
+	now := time.Now().UnixNano()
+
+	reader := db.dataFiles.NewReader()
+
+	for {
+		//如果小于mergeFinSegmentId则跳过,因为那部分已经被合并了
+		if reader.CurrentSegmentId() <= mergeFinSegmentId {
+			reader.SkipCurrentSegment()
+			continue
+		}
+		chunk, position, err := reader.Next()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		record := decodeLogRecord(chunk)
+
+		if record.Type == LogRecordBatchFinished {
+			// TODO: del batch
+		} else if record.Type == LogRecordNormal && record.BatchId == mergeFinishedBatchID {
+			db.index.Put(record.Key, position)
+		} else {
+			if record.IsExpired(now) {
+				continue
+			}
+
+			//放入临时切片
+			indexRecords[record.BatchId] = append(indexRecords[record.BatchId],
+				&IndexRecord{
+					key:        record.Key,
+					recordType: record.Type,
+					position:   position,
+				})
+		}
+	}
+
+	return nil
+}
+
+func (db *DB) loadIndex() error {
+	// 获取merge过的data的index
+	if err := db.loadIndexFormKvFile(); err != nil {
+		return err
+	}
+	// 获取还未merge的data的index
+	if err := db.loadIndexFromWAL(); err != nil {
+		return err
+	}
+	return nil
 }

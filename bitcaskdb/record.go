@@ -13,7 +13,7 @@ const (
 	//删除
 	LogRecordDeleted
 	//批量操作完成
-	LogRecordNatchFinished
+	LogRecordBatchFinished
 )
 
 const maxLogRecordHeaderSize = binary.MaxVarintLen32*2 + binary.MaxVarintLen64*2 + 1
