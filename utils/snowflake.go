@@ -24,9 +24,9 @@ const (
 
 type Snowflake struct {
 	sync.Mutex
-	timestamp    int64
-	workerid     int64
-	sequence     int64
+	timestamp int64
+	workerid  int64
+	sequence  int64
 }
 
 // uid
@@ -100,7 +100,7 @@ func GetTimestampStatus() (state float64) {
 	return
 }
 
-func (u uid) Tobytes() []byte {
+func (u uid) ToBytes() []byte {
 	s := make([]byte, 8)
 	d := make([]byte, 16)
 
@@ -115,4 +115,26 @@ func (u uid) Tobytes() []byte {
 	//进行16进制编码
 	hex.Encode(d[:], s[:])
 	return d
+}
+
+func ParseBytes(id []byte) (uid, error) {
+	d := make([]byte, 8)
+	_, err := hex.Decode(d[:], id)
+	if err != nil {
+		return 0, err
+	}
+
+	var s int64
+
+	s = 0
+	s |= int64(d[0]) << 56
+	s |= int64(d[1]) << 48
+	s |= int64(d[2]) << 40
+	s |= int64(d[3]) << 32
+	s |= int64(d[4]) << 24
+	s |= int64(d[5]) << 16
+	s |= int64(d[6]) << 8
+	s |= int64(d[7]) << 8
+
+	return uid(s), nil
 }
