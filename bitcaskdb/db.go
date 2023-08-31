@@ -189,6 +189,64 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	return batch.Get(key)
 }
 
+func (db *DB) Delete(key []byte) error {
+	batch := db.batchPool.Get().(*Batch)
+	defer func() {
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+	batch.init(false, false, db).withPendingWrites()
+	if err := batch.Delete(key); err != nil {
+		_ = batch.Rollback()
+		return err
+	}
+	return batch.Commit()
+}
+
+func (db *DB) Exist(key []byte) (bool, error) {
+	batch := db.batchPool.Get().(*Batch)
+	batch.init(true, false, db)
+	defer func() {
+		_ = batch.Commit()
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+	return batch.Exist(key)
+}
+
+func (db *DB) Expire(key []byte, ttl time.Duration) error {
+	batch := db.batchPool.Get().(*Batch)
+	defer func() {
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+	batch.init(false, false, db).withPendingWrites()
+	if err := batch.SetExpire(key, ttl); err != nil {
+		return err
+	}
+	return batch.Commit()
+}
+
+func (db *DB) TTL(key []byte) (time.Duration, error) {
+	batch := db.batchPool.Get().(*Batch)
+	batch.init(true, false, db)
+	defer func() {
+		_ = batch.Commit()
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+	return batch.TTL(key)
+}
+
+func (db *DB) Watch() (chan *Event, error) {
+	if db.options.WatchQueueSize <= 0 {
+		return nil, ErrWatchDisabled
+	}
+	return db.watchCh, nil
+}
+
+
+
 func checkOptions(options Options) error {
 	if options.DirPath == "" {
 		return errors.New("database dir path is empty")
