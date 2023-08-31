@@ -134,7 +134,7 @@ func ParseBytes(id []byte) (uid, error) {
 	s |= int64(d[4]) << 24
 	s |= int64(d[5]) << 16
 	s |= int64(d[6]) << 8
-	s |= int64(d[7]) << 8
+	s |= int64(d[7]) 
 
 	return uid(s), nil
 }
