@@ -87,6 +87,7 @@ func (db *DB) doMerge() error {
 
 	//打开一个用来merge的数据库
 	mergeDB, err := db.openMergeDB()
+
 	if err != nil {
 		return err
 	}
@@ -154,7 +155,6 @@ func (db *DB) doMerge() error {
 // 打开一个用来merge的db
 func (db *DB) openMergeDB() (*DB, error) {
 	mergePath := mergeDirPath(db.options.DirPath)
-
 	//如果目录已经存在,删除merge目录
 	if err := os.RemoveAll(mergePath); err != nil {
 		return nil, err
@@ -206,7 +206,6 @@ func loadMergeFiles(dirPath string) error {
 	if _, err := os.Stat(mergeDirPath); err != nil {
 		return nil
 	}
-
 	//Load结束,merge也就没有意义了,直接删除
 	defer func() {
 		_ = os.RemoveAll(mergeDirPath)
@@ -242,7 +241,8 @@ func loadMergeFiles(dirPath string) error {
 			if err = os.Remove(destFile); err != nil {
 				return err
 			}
-		}
+		} 
+
 
 		copyFile(dataFileNameSuffix, fileId, false)
 	}
@@ -267,7 +267,7 @@ func getMergeFinSegmentId(mergePath string) (wal.SegmentID, error) {
 
 	//TODO : 不依赖WAL
 	//四个字节存放SegmentId
-	mergeFinBuf := make([]byte, 0)
+	mergeFinBuf := make([]byte, 4)
 	if _, err := mergeFinFile.ReadAt(mergeFinBuf, 7); err != nil {
 		return 0, err
 	}

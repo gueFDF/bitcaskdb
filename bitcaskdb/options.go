@@ -45,6 +45,6 @@ var DefaultBatchOptions = BatchOptions{
 }
 
 func tempDBDir() string {
-	dir, _ := os.MkdirTemp("", "rosedb-temp")
+	dir, _ := os.MkdirTemp("", "bitcasedb-temp")
 	return dir
 }

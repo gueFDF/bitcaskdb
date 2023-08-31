@@ -95,7 +95,6 @@ func (db *DB) loadIndexFormKvFile() error {
 		}
 
 		key, position := decodeKvRecord(chunk)
-
 		db.index.Put(key, position)
 	}
 

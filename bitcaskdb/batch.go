@@ -41,7 +41,7 @@ func (db *DB) NewBatch(options BatchOptions) *Batch {
 }
 
 // batch的创建函数(内部使用)
-func makefunc() interface{} {
+func makeBatch() interface{} {
 	node, err := utils.NewSonwflacke(1)
 	if err != nil {
 		panic(fmt.Sprintf("snowflake.NewNode(1) failed: %v", err))
@@ -96,16 +96,13 @@ func (b *Batch) Put(key []byte, value []byte) error {
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}
-
 	if b.db.closed {
 		return ErrDBClosed
 	}
 	if b.options.ReadOnly {
 		return ErrReadOnlyBatch
 	}
-
 	b.mu.Lock()
-
 	b.pendingWrites[string(key)] = &LogRecord{
 		Key:    key,
 		Value:  value,

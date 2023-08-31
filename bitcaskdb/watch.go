@@ -87,6 +87,6 @@ func (w *Watcher) sendEvent(c chan *Event) {
 			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		c <- event
+		c <- event  // j
 	}
 }

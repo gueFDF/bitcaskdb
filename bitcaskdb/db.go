@@ -67,10 +67,10 @@ func Open(options Options) (*DB, error) {
 	}
 
 	db := &DB{
-		index:    NewIndexer(SkipList),
-		options:  options,
-		fileLock: filelock,
-		//	batchPool: sync.Pool{New: makeBatch},
+		index:     NewIndexer(SkipList),
+		options:   options,
+		fileLock:  filelock,
+		batchPool: sync.Pool{New: makeBatch},
 	}
 
 	//打开数据库文件(wal)
@@ -150,6 +150,45 @@ func (db *DB) Stat() *Stat {
 	}
 }
 
+func (db *DB) Put(key []byte, value []byte) error {
+	batch := db.batchPool.Get().(*Batch)
+	defer func() {
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+
+	batch.init(false, false, db).withPendingWrites()
+	if err := batch.Put(key, value); err != nil {
+		return err
+	}
+	return batch.Commit()
+}
+
+func (db *DB) PutWithTTL(key []byte, value []byte, ttl time.Duration) error {
+	batch := db.batchPool.Get().(*Batch)
+	defer func() {
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+
+	batch.init(false, false, db).withPendingWrites()
+	if err := batch.PutWithTTL(key, value, ttl); err != nil {
+		return err
+	}
+	return batch.Commit()
+}
+
+func (db *DB) Get(key []byte) ([]byte, error) {
+	batch := db.batchPool.Get().(*Batch)
+	batch.init(true, false, db)
+	defer func() {
+		_ = batch.Commit()
+		batch.reset()
+		db.batchPool.Put(batch)
+	}()
+	return batch.Get(key)
+}
+
 func checkOptions(options Options) error {
 	if options.DirPath == "" {
 		return errors.New("database dir path is empty")
@@ -203,11 +242,21 @@ func (db *DB) loadIndexFromWAL() error {
 			}
 			return err
 		}
-
 		record := decodeLogRecord(chunk)
-
 		if record.Type == LogRecordBatchFinished {
-			// TODO: del batch
+			batchId, err := utils.ParseBytes(record.Key)
+			if err != nil {
+				return err
+			}
+			for _, idxRecord := range indexRecords[uint64(batchId)] {
+				if idxRecord.recordType == LogRecordNormal {
+					db.index.Put(idxRecord.key, idxRecord.position)
+				}
+				if idxRecord.recordType == LogRecordDeleted {
+					db.index.Delete(idxRecord.key)
+				}
+			}
+			delete(indexRecords, uint64(batchId))
 		} else if record.Type == LogRecordNormal && record.BatchId == mergeFinishedBatchID {
 			db.index.Put(record.Key, position)
 		} else {

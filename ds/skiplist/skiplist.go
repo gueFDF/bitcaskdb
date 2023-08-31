@@ -1,4 +1,5 @@
 package skiplist
+
 import (
 	"bytes"
 	"math/rand"
@@ -46,7 +47,7 @@ func (t *SkipList) randLevel() int {
 			return i
 		}
 	}
-	return i
+	return i-1
 }
 
 // 用来插入或删除使用
@@ -189,7 +190,6 @@ func (t *SkipList) FindPrefix(prefix []byte) *Element {
 			next = next.next[i]
 		}
 	}
-
 
 	if next == nil {
 		next = t.Front()

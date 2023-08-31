@@ -142,11 +142,11 @@ func (wal *WAL) ActiveSegmentID() SegmentID {
 func (wal *WAL) IsEmpty() bool {
 	wal.mu.RLock()
 	defer wal.mu.RUnlock()
-
-	fmt.Println(len(wal.olderSegments), " ", wal.activeSegment.Size())
 	return len(wal.olderSegments) == 0 && wal.activeSegment.Size() == 0
 }
 
+
+//创建只能读到segId的reader
 func (wal *WAL) NewReaderWithMax(segId SegmentID) *Reader {
 	wal.mu.RLock()
 	defer wal.mu.RUnlock()
@@ -175,6 +175,7 @@ func (wal *WAL) NewReaderWithMax(segId SegmentID) *Reader {
 	}
 }
 
+//指定位置创建Reader
 func (wal *WAL) NewReaderWithStart(startPos *ChunkPosition) (*Reader, error) {
 	if startPos == nil {
 		return nil, errors.New("start position is nil ")
